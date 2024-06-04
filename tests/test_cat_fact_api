@@ -1,0 +1,76 @@
+import requests
+import pytest
+
+BASE_URL = "https://cat-fact.herokuapp.com"
+
+
+class TestCatsFacts:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.base_url = BASE_URL
+
+    def test_check_limits(self):
+        """
+        Test case to check limits (GET /facts/random?amount=:amount)
+        Steps:
+        1. Positive: Get data using /facts/random?amount=500 and check status code
+        Expected results - Status code should be 200
+        2. Negative: Get data using /facts/random?amount=501 and check status code and message
+        Expected results - Status code should be 405, message should be "Limited to 500 facts at a time"
+
+        Used here especially boundary values 500 and 501 in order to check boundaries as well
+        """
+        # Expected data by requirements
+        positive_expected_status_code = 200
+        negative_expected_status_code = 405
+        negative_expected_message = "Limited to 500 facts at a time"
+
+        positive_amount = 500
+        negative_amount = 501
+
+        # 1 Step
+        positive_response = requests.get(f"{self.base_url}/facts/random?amount={positive_amount}")
+        assert positive_response.status_code == positive_expected_status_code, \
+            "Expected status code {positive_expected_status_code}, got {positive_response.status_code}"
+
+        # 2 Step
+        negative_response = requests.get(f"{self.base_url}/facts/random?amount={negative_amount}")
+        assert negative_response.status_code == negative_expected_status_code, \
+            f"Expected status code {negative_expected_status_code}, got {negative_response.status_code}"
+        negative_response_body = negative_response.json()
+        actual_message = negative_response_body['message']
+        assert negative_expected_message == actual_message, \
+            f"Expected {negative_expected_message}, got {actual_message}"
+
+    def test_check_facts_id(self):
+        """
+        Test case to check that fact will be received correctly by ID (GET /facts/:factID)
+        Steps:
+        1. Get random fact using /facts/random endpoint. Save fact id and text
+        2. Get fact by id using /facts/:factID endpoint, using data from the step 1. Save text and fact id
+        3. Compare texts and ids from step 1 and step 2
+        Expected results - text from 1 and 2 steps should be the same
+        """
+        # step 1
+        random_response = requests.get(f"{self.base_url}/facts/random")
+
+        assert random_response.status_code == 200, f"Expected status code 200, got {random_response.status_code}"
+        random_fact = random_response.json()
+        random_fact_id = random_fact['_id']
+        random_fact_text = random_fact['text']
+
+        # step 2
+        response_by_id = requests.get(f"{self.base_url}/facts/{random_fact_id}")
+
+        assert response_by_id.status_code == 200, f"Expected status code 200, got {response_by_id.status_code}"
+        fact_by_id = response_by_id.json()
+        fact_by_id_id = fact_by_id['_id']
+        fact_by_id_text = fact_by_id['text']
+
+        # step 3
+        assert random_fact_text == fact_by_id_text, (f"Test failed because text for /facts/:{random_fact_id} "
+                                                     f"is not the same as it was for /facts/random with the same id. "
+                                                     f"It is {fact_by_id_text}, but should be {random_fact_text}")
+        assert random_fact_id == fact_by_id_id, (f"Test failed because id for /facts/:{random_fact_id} "
+                                                 f"is not the same as it was for /facts/random with the same id.  "
+                                                 f"It is {fact_by_id_id}, but should be {random_fact_id}")
